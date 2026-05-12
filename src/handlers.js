@@ -118,10 +118,29 @@ export function createHandlers({ slack, store, config }) {
     if (!ticketId) return empty();
 
     if (action.action_id === "assign_ticket") {
-      const ticket = store.assignTicket(ticketId, payload.user.id, action.selected_user);
-      await refreshWorkflowMessage(ticket);
-      return empty();
-    }
+  const before = store.findTicket(ticketId);
+  const wasUnclaimed = !before.assignedSlackUserId;
+
+  const ticket = store.assignTicket(ticketId, payload.user.id, action.selected_user);
+
+  const currentTicket = wasUnclaimed && config.claimedChannelId
+    ? await moveWorkflowMessage(ticket, config.claimedChannelId, "Claimed")
+    : ticket;
+
+  if (!wasUnclaimed) {
+    await refreshWorkflowMessage(currentTicket);
+  }
+
+  const assigneeName = await displayNameForUserId(action.selected_user);
+  const actorName = await displayNameForUserId(payload.user.id);
+
+  await postToTicketThreads(
+    currentTicket,
+    `${actorName} assigned this ticket to ${assigneeName}.`
+  );
+
+  return empty();
+}
 
     if (action.action_id === "claim_ticket") {
       const before = store.findTicket(ticketId);
