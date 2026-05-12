@@ -1,0 +1,21 @@
+{
+  "name": "club-slack-ticketing",
+  "version": "0.1.0",
+  "description": "A dependency-free Slack ticketing app for small clubs and volunteer teams.",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "slack",
+    "ticketing",
+    "club",
+    "helpdesk"
+  ],
+  "license": "MIT"
+}
