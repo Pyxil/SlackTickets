@@ -225,7 +225,15 @@ export function createHandlers({ slack, store, config }) {
 
   async function alertTeam(ticket) {
     const team = teamConfigForTicket(ticket);
-    if (!team?.channelId) return;
+    if (!team) {
+      console.warn(`No team config found for ticket "${ticket.title}" with team "${ticket.team || ticket.category}".`);
+      return;
+    }
+
+    if (!team.channelId) {
+      console.warn(`No Slack channel configured for ${team.label}. Set ${team.key.toUpperCase()}_CHANNEL_ID in the environment.`);
+      return;
+    }
 
     const message = await postThreadedNotice({
       channel: team.channelId,
