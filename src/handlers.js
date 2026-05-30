@@ -92,7 +92,7 @@ export function createHandlers({ slack, store, config }) {
         sourceResponseUrl: metadata.sourceResponseUrl || null
       });
 
-      await acknowledgeSourceSafely(ticket);
+      await acknowledgeSourceSafely(ticket, metadata.triggerSource);
       const currentTicket = await postWorkflowMessage(ticket, config.unclaimedChannelId, "Unclaimed");
       await copyCreationFilesToWorkflowThread(currentTicket || ticket);
       await alertTeamSafely(ticket);
@@ -211,16 +211,16 @@ export function createHandlers({ slack, store, config }) {
     }
   }
 
-  async function acknowledgeSourceSafely(ticket) {
-    await acknowledgeSourceResponseUrlSafely(ticket);
+  async function acknowledgeSourceSafely(ticket, triggerSource) {
+    await acknowledgeSourceResponseUrlSafely(ticket, triggerSource);
   }
 
-  async function acknowledgeSourceResponseUrlSafely(ticket) {
+  async function acknowledgeSourceResponseUrlSafely(ticket, triggerSource) {
     if (!ticket.sourceResponseUrl) return;
 
     try {
       await slack.postResponseUrl(ticket.sourceResponseUrl, {
-        response_type: "in_channel",
+        response_type: triggerSource === "slash" ? "ephemeral" : "in_channel",
         text: "Ticket created!",
         ...(ticket.sourceMessage?.messageTs ? { thread_ts: ticket.sourceMessage.messageTs } : {})
       });
@@ -263,6 +263,7 @@ export function createHandlers({ slack, store, config }) {
         text: `Ticket moved to ${destinationLabel}.`,
         blocks: movedTicketBlocks(ticket, destinationLabel)
       });
+      deleteMessageLater(previousChannelId, previousThreadTs);
     }
 
     return updatedTicket;
@@ -292,7 +293,7 @@ export function createHandlers({ slack, store, config }) {
     const message = await postThreadedNotice({
       channel: team.channelId,
       rootText: "Ticket created!",
-      threadText: `A *${team.label}* ticket has been created and is in <#${config.unclaimedChannelId}>.\n*${ticket.title}*\n*Priority:* ${ticket.priority.replaceAll("_", " ")}`
+      threadText: `A new ticket was made for the ${team.label} team and is in the <#${config.unclaimedChannelId}> channel`
     });
 
     store.attachTeamMessage(ticket.id, message.channel, message.ts);
@@ -370,6 +371,16 @@ export function createHandlers({ slack, store, config }) {
 
       await copyReplyFilesToWorkflowThread(ticket, reply);
     }
+  }
+
+  function deleteMessageLater(channel, ts, delayMs = 15000) {
+    setTimeout(async () => {
+      try {
+        await slack.chatDelete({ channel, ts });
+      } catch (error) {
+        console.error(`Failed to delete moved ticket notice in ${channel} at ${ts}`, error.response || error);
+      }
+    }, delayMs);
   }
 
   function isCopyHeaderReply(reply) {

@@ -90,6 +90,7 @@ export function createSlackClient(botToken, fetchImpl = fetch) {
 
   return {
     api,
+    chatDelete: (body) => api("chat.delete", body),
     chatPostMessage: (body) => api("chat.postMessage", body),
     chatUpdate: (body) => api("chat.update", body),
     conversationsReplies: (body) => formApi("conversations.replies", body),

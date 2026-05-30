@@ -1,6 +1,12 @@
 export const statuses = ["open", "in_progress", "waiting", "resolved"];
-export const priorities = ["low", "normal", "high", "urgent"];
+export const priorities = ["low", "medium", "high", "urgent"];
 export const teams = ["mechanical", "electrical", "research", "business"];
+export const priorityLabels = {
+  low: "Low (1 week)",
+  medium: "Medium (3-4 days)",
+  high: "High (1 day)",
+  urgent: "Urgent (EOD)"
+};
 
 export function humanize(value) {
   if (!value) return "Unassigned";
@@ -64,7 +70,7 @@ export function ticketModal(triggerSource = "slash", defaults = {}) {
         element: {
           type: "static_select",
           action_id: "value",
-          initial_option: option("normal"),
+          initial_option: option("medium"),
           options: priorities.map((priority) => option(priority))
         }
       },
@@ -105,7 +111,7 @@ export function ticketBlocks(ticket, events = []) {
       type: "section",
       fields: [
         markdownField(`*Status:*\n${humanize(ticket.status)}`),
-        markdownField(`*Priority:*\n${humanize(ticket.priority)}`),
+        markdownField(`*Priority:*\n${displayPriority(ticket.priority)}`),
         markdownField(`*Team:*\n${humanize(team)}`),
         markdownField(`*Assignee:*\n${assigneeText}`),
         markdownField(`*Requester:*\n${requesterText}`),
@@ -266,7 +272,7 @@ function sectionList(title, tickets) {
   }
 
   const lines = tickets.slice(0, 10).map((ticket) => {
-    return `*${escapeMrkdwn(ticket.title)}* - ${humanize(ticket.status)} - ${humanize(ticket.priority)}`;
+    return `*${escapeMrkdwn(ticket.title)}* - ${humanize(ticket.status)} - ${displayPriority(ticket.priority)}`;
   });
 
   return {
@@ -277,9 +283,13 @@ function sectionList(title, tickets) {
 
 function option(value) {
   return {
-    text: { type: "plain_text", text: humanize(value) },
+    text: { type: "plain_text", text: displayPriority(value) },
     value
   };
+}
+
+function displayPriority(value) {
+  return priorityLabels[value] || humanize(value);
 }
 
 function alreadyClaimedConfirm(ticket) {
