@@ -132,6 +132,9 @@ export function createHandlers({ slack, store, config }) {
       const currentTicket = wasUnclaimed && config.claimedChannelId
         ? await moveWorkflowMessage(ticket, config.claimedChannelId, "Claimed")
         : ticket;
+      if (wasUnclaimed) {
+        await deleteTeamAlertSafely(currentTicket);
+      }
 
       if (!wasUnclaimed) {
         await refreshWorkflowMessage(currentTicket);
@@ -156,6 +159,9 @@ export function createHandlers({ slack, store, config }) {
       const currentTicket = wasUnclaimed && config.claimedChannelId
         ? await moveWorkflowMessage(ticket, config.claimedChannelId, "Claimed")
         : ticket;
+      if (wasUnclaimed) {
+        await deleteTeamAlertSafely(currentTicket);
+      }
       await copyRepliesToWorkflowThread(currentTicket, repliesToCopy);
       if (!wasUnclaimed) {
         await refreshWorkflowMessage(currentTicket);
@@ -298,6 +304,12 @@ export function createHandlers({ slack, store, config }) {
     store.attachTeamMessage(ticket.id, message.channel, message.ts);
   }
 
+  async function deleteTeamAlertSafely(ticket) {
+    if (!ticket.teamChannelId || !ticket.teamThreadTs) return;
+
+    await deleteSlackMessageSafely(ticket.teamChannelId, ticket.teamThreadTs);
+  }
+
   async function postToTicketThreads(ticket, text) {
     if (ticket.workflowChannelId && ticket.workflowThreadTs) {
       await slack.chatPostMessage({
@@ -360,30 +372,70 @@ export function createHandlers({ slack, store, config }) {
   function deleteThreadLater(channel, ts, delayMs = 15000) {
     setTimeout(async () => {
       try {
-        const response = await slack.conversationsReplies({
-          channel,
-          ts,
-          limit: 100
-        });
-        const messages = response.messages || [];
+        const messages = await readAllThreadMessages(channel, ts);
         const replyMessages = messages.filter((message) => message.ts !== ts).reverse();
 
         for (const message of replyMessages) {
-          await deleteSlackMessageSafely(channel, message.ts);
+          await deleteSlackMessageSafely(channel, message.ts, message);
         }
 
-        await deleteSlackMessageSafely(channel, ts);
+        await deleteSlackMessageSafely(channel, ts, messages.find((message) => message.ts === ts));
       } catch (error) {
         console.error(`Failed to delete moved ticket thread in ${channel} at ${ts}`, error.response || error);
       }
     }, delayMs);
   }
 
-  async function deleteSlackMessageSafely(channel, ts) {
+  async function readAllThreadMessages(channel, ts) {
+    const messages = [];
+    let cursor;
+
+    do {
+      const response = await slack.conversationsReplies({
+        channel,
+        ts,
+        limit: 100,
+        ...(cursor ? { cursor } : {})
+      });
+      messages.push(...(response.messages || []));
+      cursor = response.response_metadata?.next_cursor || "";
+    } while (cursor);
+
+    return messages;
+  }
+
+  async function deleteSlackMessageSafely(channel, ts, knownMessage = null) {
     try {
+      const message = knownMessage || await findThreadMessage(channel, ts);
+      await deleteMessageFilesSafely(message);
       await slack.chatDelete({ channel, ts });
     } catch (error) {
       console.error(`Failed to delete Slack message in ${channel} at ${ts}`, error.response || error);
+    }
+  }
+
+  async function findThreadMessage(channel, ts) {
+    try {
+      const response = await slack.conversationsReplies({
+        channel,
+        ts,
+        limit: 1
+      });
+      return response.messages?.[0] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function deleteMessageFilesSafely(message) {
+    for (const file of message?.files || []) {
+      if (!file.id) continue;
+
+      try {
+        await slack.filesDelete({ file: file.id });
+      } catch (error) {
+        console.error(`Failed to delete Slack file ${file.id}`, error.response || error);
+      }
     }
   }
 
