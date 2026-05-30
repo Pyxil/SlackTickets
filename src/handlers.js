@@ -93,7 +93,8 @@ export function createHandlers({ slack, store, config }) {
       });
 
       await acknowledgeSourceSafely(ticket);
-      await postWorkflowMessage(ticket, config.unclaimedChannelId, "Unclaimed");
+      const currentTicket = await postWorkflowMessage(ticket, config.unclaimedChannelId, "Unclaimed");
+      await copyCreationFilesToWorkflowThread(currentTicket || ticket);
       await alertTeamSafely(ticket);
 
       return json({ response_action: "clear" });
@@ -364,6 +365,38 @@ export function createHandlers({ slack, store, config }) {
         });
       }
     }
+  }
+
+  async function copyCreationFilesToWorkflowThread(ticket) {
+    const files = ticket.creationFiles || [];
+    if (!ticket.workflowChannelId || !ticket.workflowThreadTs || files.length === 0) return;
+
+    for (const file of files) {
+      try {
+        const hydratedFile = await hydrateSlackFile(file);
+        await copySlackFileToThread({
+          file: hydratedFile,
+          channelId: ticket.workflowChannelId,
+          threadTs: ticket.workflowThreadTs,
+          initialComment: `Attached during ticket creation: ${hydratedFile.title || hydratedFile.name || "file"}`
+        });
+      } catch (error) {
+        console.error(`Failed to copy ticket creation file ${file.id || file.name || ""}`, error.response || error);
+        await slack.chatPostMessage({
+          channel: ticket.workflowChannelId,
+          thread_ts: ticket.workflowThreadTs,
+          text: `A file was attached during ticket creation, but the app could not copy it.`
+        });
+      }
+    }
+  }
+
+  async function hydrateSlackFile(file) {
+    if (file.url_private_download || file.url_private) return file;
+    if (!file.id) return file;
+
+    const response = await slack.filesInfo({ file: file.id });
+    return response.file || file;
   }
 
   async function copySlackFileToThread({ file, channelId, threadTs, initialComment }) {

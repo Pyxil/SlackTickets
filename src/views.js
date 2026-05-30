@@ -67,6 +67,17 @@ export function ticketModal(triggerSource = "slash", defaults = {}) {
           initial_option: option("normal"),
           options: priorities.map((priority) => option(priority))
         }
+      },
+      {
+        type: "input",
+        block_id: "attachments",
+        optional: true,
+        label: { type: "plain_text", text: "Relevant files" },
+        element: {
+          type: "file_input",
+          action_id: "value",
+          max_files: 10
+        }
       }
     ]
   };
@@ -224,8 +235,14 @@ export function parseTicketModalValues(view) {
     title: values.title.value.value,
     description: values.description.value.value,
     team: values.team.value.selected_option.value,
-    priority: values.priority.value.selected_option.value
+    priority: values.priority.value.selected_option.value,
+    files: parseFileInput(values.attachments?.value)
   };
+}
+
+function parseFileInput(value) {
+  if (!value) return [];
+  return value.files || value.selected_files || [];
 }
 
 export function movedTicketBlocks(ticket, destinationLabel) {

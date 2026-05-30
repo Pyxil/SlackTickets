@@ -54,6 +54,7 @@ export class TicketStore {
       sourceChannelId: input.sourceChannelId || input.sourceMessage?.channelId || null,
       sourceMessage: input.sourceMessage || null,
       sourceResponseUrl: input.sourceResponseUrl || null,
+      creationFiles: input.files || [],
       createdAt: now,
       updatedAt: now,
       resolvedAt: null

@@ -96,6 +96,7 @@ export function createSlackClient(botToken, fetchImpl = fetch) {
     downloadFile,
     filesCompleteUploadExternal: (body) => api("files.completeUploadExternal", body),
     filesGetUploadURLExternal: (body) => formApi("files.getUploadURLExternal", body),
+    filesInfo: (body) => formApi("files.info", body),
     postResponseUrl,
     uploadFileBytes,
     viewsOpen: (body) => api("views.open", body),

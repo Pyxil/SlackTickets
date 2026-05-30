@@ -6,6 +6,7 @@ A small, dependency-free Slack ticketing app for clubs. Members create tickets f
 
 - `/ticket` opens a Slack modal for new requests.
 - Right-clicking a Slack message can create a ticket from that message using the message shortcut.
+- Ticket creation supports optional file attachments, copied into the unclaimed ticket thread.
 - Ticket numbers are not shown in Slack messages; tickets are identified by title and workflow state.
 - `/ticket open` lists active tickets.
 - Unclaimed, claimed, and resolved workflow channels receive the current ticket post.
@@ -139,6 +140,8 @@ Set these channel IDs in `.env`:
 New tickets are posted to the unclaimed channel. When someone clicks **Claim**, the app posts the current ticket in the claimed channel and marks the old workflow post as moved. When someone clicks **Resolve**, the app posts the current ticket in the resolved channel, copies replies from the claimed ticket thread into the resolved ticket thread, and marks the previous workflow post as moved.
 
 Slack does not provide an API to physically move an existing message and all of its replies into another channel. This app creates the next workflow post in the destination channel and copies thread replies when resolving. Reply and file copying requires `channels:history`, `groups:history`, `files:read`, and `files:write`; reinstall the Slack app after adding those scopes.
+
+Slack modal file uploads have a 10MB per-file limit.
 
 The channel where `/ticket` was used only receives:
 
