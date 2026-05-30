@@ -156,7 +156,7 @@ export function createHandlers({ slack, store, config }) {
       const currentTicket = wasUnclaimed && config.claimedChannelId
         ? await moveWorkflowMessage(ticket, config.claimedChannelId, "Claimed")
         : ticket;
-      await copyRepliesToWorkflowThread(currentTicket, repliesToCopy, "Copied replies from the unclaimed ticket thread:");
+      await copyRepliesToWorkflowThread(currentTicket, repliesToCopy);
       if (!wasUnclaimed) {
         await refreshWorkflowMessage(currentTicket);
       }
@@ -169,7 +169,7 @@ export function createHandlers({ slack, store, config }) {
       const repliesToCopy = await readWorkflowRepliesSafely(before);
       const ticket = store.resolveTicket(ticketId, payload.user.id);
       const currentTicket = await moveWorkflowMessage(ticket, config.resolvedChannelId, "Resolved");
-      await copyRepliesToWorkflowThread(currentTicket, repliesToCopy, "Copied replies from the claimed ticket thread:");
+      await copyRepliesToWorkflowThread(currentTicket, repliesToCopy);
       await postToTicketThreads(currentTicket, `${await displayNameForUserId(payload.user.id)} resolved this ticket.`);
       return empty();
     }
@@ -353,16 +353,12 @@ export function createHandlers({ slack, store, config }) {
     }
   }
 
-  async function copyRepliesToWorkflowThread(ticket, replies, headerText) {
+  async function copyRepliesToWorkflowThread(ticket, replies) {
     if (!ticket.workflowChannelId || !ticket.workflowThreadTs || replies.length === 0) return;
 
-    await slack.chatPostMessage({
-      channel: ticket.workflowChannelId,
-      thread_ts: ticket.workflowThreadTs,
-      text: headerText
-    });
-
     for (const reply of replies) {
+      if (isCopyHeaderReply(reply)) continue;
+
       const text = await formatCopiedReply(reply);
       if (text) {
         await slack.chatPostMessage({
@@ -374,6 +370,12 @@ export function createHandlers({ slack, store, config }) {
 
       await copyReplyFilesToWorkflowThread(ticket, reply);
     }
+  }
+
+  function isCopyHeaderReply(reply) {
+    const text = reply.text?.trim();
+    return text === "Copied replies from the claimed ticket thread:" ||
+      text === "Copied replies from the unclaimed ticket thread:";
   }
 
   async function copyReplyFilesToWorkflowThread(ticket, reply) {
