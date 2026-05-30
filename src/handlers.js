@@ -146,10 +146,12 @@ export function createHandlers({ slack, store, config }) {
     if (action.action_id === "claim_ticket") {
       const before = store.findTicket(ticketId);
       const wasUnclaimed = !before.assignedSlackUserId;
+      const repliesToCopy = wasUnclaimed ? await readWorkflowRepliesSafely(before) : [];
       const ticket = store.claimTicket(ticketId, payload.user.id);
       const currentTicket = wasUnclaimed && config.claimedChannelId
         ? await moveWorkflowMessage(ticket, config.claimedChannelId, "Claimed")
         : ticket;
+      await copyRepliesToWorkflowThread(currentTicket, repliesToCopy, "Copied replies from the unclaimed ticket thread:");
       if (!wasUnclaimed) {
         await refreshWorkflowMessage(currentTicket);
       }
@@ -162,7 +164,7 @@ export function createHandlers({ slack, store, config }) {
       const repliesToCopy = await readWorkflowRepliesSafely(before);
       const ticket = store.resolveTicket(ticketId, payload.user.id);
       const currentTicket = await moveWorkflowMessage(ticket, config.resolvedChannelId, "Resolved");
-      await copyRepliesToWorkflowThread(currentTicket, repliesToCopy);
+      await copyRepliesToWorkflowThread(currentTicket, repliesToCopy, "Copied replies from the claimed ticket thread:");
       await postToTicketThreads(currentTicket, `${await displayNameForUserId(payload.user.id)} resolved this ticket.`);
       return empty();
     }
@@ -319,13 +321,13 @@ export function createHandlers({ slack, store, config }) {
     }
   }
 
-  async function copyRepliesToWorkflowThread(ticket, replies) {
+  async function copyRepliesToWorkflowThread(ticket, replies, headerText) {
     if (!ticket.workflowChannelId || !ticket.workflowThreadTs || replies.length === 0) return;
 
     await slack.chatPostMessage({
       channel: ticket.workflowChannelId,
       thread_ts: ticket.workflowThreadTs,
-      text: "Copied replies from the claimed ticket thread:"
+      text: headerText
     });
 
     for (const reply of replies) {
