@@ -118,30 +118,35 @@ export function createHandlers({ slack, store, config }) {
     const ticketId = action.value || extractTicketIdFromBlockId(action.block_id);
     if (!ticketId) return empty();
 
+    if (!store.getTicket(ticketId)) {
+      await markStaleTicketMessage(payload, ticketId);
+      return empty();
+    }
+
     if (action.action_id === "assign_ticket") {
-  const before = store.findTicket(ticketId);
-  const wasUnclaimed = !before.assignedSlackUserId;
+      const before = store.findTicket(ticketId);
+      const wasUnclaimed = !before.assignedSlackUserId;
 
-  const ticket = store.assignTicket(ticketId, payload.user.id, action.selected_user);
+      const ticket = store.assignTicket(ticketId, payload.user.id, action.selected_user);
 
-  const currentTicket = wasUnclaimed && config.claimedChannelId
-    ? await moveWorkflowMessage(ticket, config.claimedChannelId, "Claimed")
-    : ticket;
+      const currentTicket = wasUnclaimed && config.claimedChannelId
+        ? await moveWorkflowMessage(ticket, config.claimedChannelId, "Claimed")
+        : ticket;
 
-  if (!wasUnclaimed) {
-    await refreshWorkflowMessage(currentTicket);
-  }
+      if (!wasUnclaimed) {
+        await refreshWorkflowMessage(currentTicket);
+      }
 
-  const assigneeName = await displayNameForUserId(action.selected_user);
-  const actorName = await displayNameForUserId(payload.user.id);
+      const assigneeName = await displayNameForUserId(action.selected_user);
+      const actorName = await displayNameForUserId(payload.user.id);
 
-  await postToTicketThreads(
-    currentTicket,
-    `${actorName} assigned this ticket to ${assigneeName}.`
-  );
+      await postToTicketThreads(
+        currentTicket,
+        `${actorName} assigned this ticket to ${assigneeName}.`
+      );
 
-  return empty();
-}
+      return empty();
+    }
 
     if (action.action_id === "claim_ticket") {
       const before = store.findTicket(ticketId);
@@ -177,6 +182,33 @@ export function createHandlers({ slack, store, config }) {
     }
 
     return empty();
+  }
+
+  async function markStaleTicketMessage(payload, ticketId) {
+    const channel = payload.container?.channel_id || payload.channel?.id;
+    const ts = payload.container?.message_ts || payload.message?.ts;
+    console.warn(`Ignoring stale ticket action for missing ticket ${ticketId}.`);
+
+    if (!channel || !ts) return;
+
+    try {
+      await slack.chatUpdate({
+        channel,
+        ts,
+        text: "This ticket is no longer available.",
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "*This ticket is no longer available.*\nThe stored ticket record could not be found, so this old message can no longer be used."
+            }
+          }
+        ]
+      });
+    } catch (error) {
+      console.error(`Failed to mark stale ticket message for ticket ${ticketId}`, error.response || error);
+    }
   }
 
   async function acknowledgeSourceSafely(ticket) {
