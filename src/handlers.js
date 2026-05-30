@@ -355,8 +355,7 @@ export function createHandlers({ slack, store, config }) {
         await copySlackFileToThread({
           file,
           channelId: ticket.workflowChannelId,
-          threadTs: ticket.workflowThreadTs,
-          initialComment: `${authorName} attached ${file.title || file.name || "a file"}`
+          threadTs: ticket.workflowThreadTs
         });
       } catch (error) {
         console.error(`Failed to copy Slack file ${file.id || file.name || ""}`, error.response || error);
@@ -379,8 +378,7 @@ export function createHandlers({ slack, store, config }) {
         await copySlackFileToThread({
           file: hydratedFile,
           channelId: ticket.workflowChannelId,
-          threadTs: ticket.workflowThreadTs,
-          initialComment: `Attached during ticket creation: ${hydratedFile.title || hydratedFile.name || "file"}`
+          threadTs: ticket.workflowThreadTs
         });
       } catch (error) {
         console.error(`Failed to copy ticket creation file ${file.id || file.name || ""}`, error.response || error);
@@ -418,7 +416,7 @@ export function createHandlers({ slack, store, config }) {
     await slack.filesCompleteUploadExternal({
       channel_id: channelId,
       thread_ts: threadTs,
-      initial_comment: initialComment,
+      ...(initialComment ? { initial_comment: initialComment } : {}),
       files: [
         {
           id: upload.file_id,
