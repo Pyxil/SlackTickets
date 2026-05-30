@@ -263,7 +263,7 @@ export function createHandlers({ slack, store, config }) {
         text: `Ticket moved to ${destinationLabel}.`,
         blocks: movedTicketBlocks(ticket, destinationLabel)
       });
-      deleteMessageLater(previousChannelId, previousThreadTs);
+      deleteThreadLater(previousChannelId, previousThreadTs);
     }
 
     return updatedTicket;
@@ -290,28 +290,12 @@ export function createHandlers({ slack, store, config }) {
       return;
     }
 
-    const message = await postThreadedNotice({
+    const message = await slack.chatPostMessage({
       channel: team.channelId,
-      rootText: "Ticket created!",
-      threadText: `A new ticket was made for the ${team.label} team and is in the <#${config.unclaimedChannelId}> channel`
+      text: `A new ticket was made for the ${team.label} team and is in the <#${config.unclaimedChannelId}> channel`
     });
 
     store.attachTeamMessage(ticket.id, message.channel, message.ts);
-  }
-
-  async function postThreadedNotice({ channel, rootText, threadText }) {
-    const root = await slack.chatPostMessage({
-      channel,
-      text: rootText
-    });
-
-    await slack.chatPostMessage({
-      channel: root.channel,
-      thread_ts: root.ts,
-      text: threadText
-    });
-
-    return root;
   }
 
   async function postToTicketThreads(ticket, text) {
@@ -373,14 +357,34 @@ export function createHandlers({ slack, store, config }) {
     }
   }
 
-  function deleteMessageLater(channel, ts, delayMs = 15000) {
+  function deleteThreadLater(channel, ts, delayMs = 15000) {
     setTimeout(async () => {
       try {
-        await slack.chatDelete({ channel, ts });
+        const response = await slack.conversationsReplies({
+          channel,
+          ts,
+          limit: 100
+        });
+        const messages = response.messages || [];
+        const replyMessages = messages.filter((message) => message.ts !== ts).reverse();
+
+        for (const message of replyMessages) {
+          await deleteSlackMessageSafely(channel, message.ts);
+        }
+
+        await deleteSlackMessageSafely(channel, ts);
       } catch (error) {
-        console.error(`Failed to delete moved ticket notice in ${channel} at ${ts}`, error.response || error);
+        console.error(`Failed to delete moved ticket thread in ${channel} at ${ts}`, error.response || error);
       }
     }, delayMs);
+  }
+
+  async function deleteSlackMessageSafely(channel, ts) {
+    try {
+      await slack.chatDelete({ channel, ts });
+    } catch (error) {
+      console.error(`Failed to delete Slack message in ${channel} at ${ts}`, error.response || error);
+    }
   }
 
   function isCopyHeaderReply(reply) {
