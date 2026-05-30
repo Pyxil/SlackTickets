@@ -72,6 +72,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(config.port, () => {
   console.log(`Club Slack ticketing app listening on http://localhost:${config.port}`);
+  console.log(`Ticket data file: ${config.dataFile}`);
 });
 
 function readBody(req) {

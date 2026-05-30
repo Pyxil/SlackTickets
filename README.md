@@ -53,6 +53,8 @@ RESEARCH_LEAD_USER_IDS=U...
 BUSINESS_LEAD_USER_IDS=U...
 ```
 
+For Railway, attach a volume and set `DATA_FILE=/data/tickets.json`. Keeping `DATA_FILE=./data/tickets.json` in production can reset ticket storage on redeploy, which leaves old Slack buttons pointing at missing ticket records.
+
 7. Invite the bot to your workflow channels and each private team channel:
 
 ```text

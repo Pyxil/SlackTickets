@@ -44,6 +44,33 @@ BUSINESS_LEAD_USER_IDS=U...
 - Add the environment variables above.
 - Use the Render HTTPS URL in the Slack app URLs.
 
+## Railway Example
+
+Railway redeploys replace the app container filesystem. To keep Slack button IDs matched to stored tickets after every deploy, store `tickets.json` on a Railway volume.
+
+1. In Railway, open the ticketing service.
+2. Go to **Volumes** and add a volume.
+3. Mount it at:
+
+```text
+/data
+```
+
+4. In **Variables**, set:
+
+```bash
+DATA_FILE=/data/tickets.json
+```
+
+5. Redeploy the service.
+6. Open the service logs and confirm startup prints:
+
+```text
+Ticket data file: /data/tickets.json
+```
+
+Do not leave production Railway storage at `./data/tickets.json`; that path lives inside the redeployed container and can be reset. If you change `DATA_FILE` after tickets already exist, copy the old JSON file into the new volume path or old Slack buttons will point at tickets the app can no longer find.
+
 ## VPS systemd Example
 
 ```ini
